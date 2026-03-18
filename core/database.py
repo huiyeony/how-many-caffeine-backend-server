@@ -9,7 +9,7 @@ _pool: AsyncConnectionPool | None = None
 async def init_pool():
     global _pool
     _pool = AsyncConnectionPool(settings.database_url, min_size=2, max_size=10, open=False)
-    await _pool.open()
+    await _pool.open(wait=True)
 
 
 async def close_pool():
