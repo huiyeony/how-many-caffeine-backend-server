@@ -57,7 +57,6 @@ services:
       - PYTHONPATH=/app
       - DATABASE_URL=postgresql://myuser:mypassword@db:5432/caffeine_db
       # - OLLAMA_BASE_URL=http://ollama:11434 # 로컬 모델 URL 주석 처리
-      - OPENAI_API_KEY=${OPENAI_API_KEY} # OpenAI API 키 환경변수 추가
       - PYTHONUNBUFFERED=1
 
 volumes:

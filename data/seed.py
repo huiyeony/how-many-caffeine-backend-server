@@ -3,15 +3,15 @@ import csv
 from core.database import get_db_connection #
 from rag.embedding import get_embeddings #
 from dotenv import load_dotenv
-async def seed_initial_data(csv_path: str = "data/drinks.csv"):
+async def seed_initial_data(csv_path: str = "data/drinks_silver.csv"):
     load_dotenv()
-    with get_db_connection() as conn: #
+    with get_db_connection() as conn: 
         with conn.cursor() as cur:
-            # 1. 데이터 존재 여부 확인
-            cur.execute("SELECT EXISTS (SELECT 1 FROM drinks LIMIT 1);") #
-            if cur.fetchone()[0]:
-                print(">>> [Seed] 이미 데이터가 존재합니다. 삽입을 건너뜁니다.")
-                return
+            # # 1. 데이터 존재 여부 확인
+            # cur.execute("SELECT EXISTS (SELECT 1 FROM drinks LIMIT 1);") #
+            # if cur.fetchone()[0]:
+            #     print(">>> [Seed] 이미 데이터가 존재합니다. 삽입을 건너뜁니다.")
+            #     return
 
             # 2. CSV 로드 (DictReader 활용)
             raw_data = []
@@ -36,22 +36,29 @@ async def seed_initial_data(csv_path: str = "data/drinks.csv"):
                 chunk = raw_data[i : i + batch_size]
                 
                 # 임베딩 생성용 텍스트 (ice_type은 현재 스키마에 없으므로 확인 필요)
-                texts = [f"{item['brand']} {item['drink_name']} {item['ice_type']}" for item in chunk]
+                # 임베딩 텍스트에 맥락 추가
+                texts = [f'''
+                         * **브랜드** :{item['brand']} 
+                         * **음료명** : {item['drink_name']} {item['ice_type']}
+                         * **카페인** :{item['caffeine_amount']}mg
+                         ''' 
+                         for item in chunk]
                 embeddings = await get_embeddings(texts) #
 
-                # 4. Prepared Statement를 활용한 배치 삽입
-                # database.py 스키마의 'maker' 컬럼명과 'UNIQUE(drink_name, maker)' 제약 조건을 준수합니다.
                 insert_query = """
-                    INSERT INTO drinks (drink_name, brand, caffeine_amount, ice_type, embedding)
+                    INSERT INTO drinks (brand, drink_name, caffeine_amount, ice_type, embedding)
                     VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (drink_name, brand) DO NOTHING;
+                    ON CONFLICT (brand, drink_name, ice_type) 
+                    DO UPDATE SET
+                    caffeine_amount = EXCLUDED.caffeine_amount,
+                    embedding = EXCLUDED.embedding;
                 """ #
 
                 # 쿼리에 들어갈 튜플 리스트 생성
                 rows_to_insert = [
                     (
                         item['drink_name'], 
-                        item['brand'], # DB의 'maker' 컬럼으로 매핑
+                        item['brand'], 
                         item.get('caffeine_amount'), 
                         item.get('ice_type'), 
                         embeddings[j]
@@ -59,7 +66,6 @@ async def seed_initial_data(csv_path: str = "data/drinks.csv"):
                     for j, item in enumerate(chunk)
                 ]
 
-                # prepare=True: 쿼리 분석 및 실행 계획을 재사용하여 성능 극대화
                 cur.executemany(insert_query, rows_to_insert)
                 print(f">>> [Seed] {i + len(chunk)} / {len(raw_data)} 처리 중...")
 

@@ -21,15 +21,19 @@ def init_db():
             
             # 2. 신규 테이블 생성 (IF NOT EXISTS로 기존 데이터 보호)
             cur.execute("""
+                DROP TABLE drinks;
+                CREATE EXTENSION IF NOT EXISTS vector;    -- pgvector (벡터 검색용) [cite: 11]
+                CREATE EXTENSION IF NOT EXISTS pg_trgm;  -- pg_trgm (오타 교정 및 유사 검색용) [cite: 41]
+
                 CREATE TABLE IF NOT EXISTS drinks (
                     id SERIAL PRIMARY KEY,
                     drink_name TEXT NOT NULL,
                     brand TEXT NOT NULL,
                     caffeine_amount NUMERIC,
                     ice_type TEXT,
-                    embedding VECTOR(1024), 
-                    UNIQUE(drink_name, brand)
-                );
+                    embedding VECTOR(1536), 
+                    UNIQUE(brand, drink_name, ice_type)
+                );   
             """)
             
             # 3. 인덱스 생성은 CREATE 바깥에서 생성하는것이 표준
