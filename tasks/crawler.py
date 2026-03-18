@@ -279,12 +279,101 @@ class MegaCoffeeCrawler(BaseCrawler):
 
 
 # ══════════════════════════════════════════════════════════════
+# 컴포즈커피
+# ══════════════════════════════════════════════════════════════
+class ComposeCoffeeCrawler(BaseCrawler):
+    brand_name  = "composecoffee"
+    BASE_URL    = "https://composecoffee.com/menu/category"
+    # MD상품·콤보 제외, 음료 카테고리만
+    CATEGORIES  = [185, 187, 192, 193, 188, 191, 339]
+
+    def crawl(self) -> list[dict]:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        results = []
+        for cat_id in self.CATEGORIES:
+            page = 1
+            while True:
+                logger.info(f"[{self.brand_name}] category {cat_id} page {page}")
+                items = self._crawl_category_page(cat_id, page)
+                if not items:
+                    break
+                results.extend(items)
+                logger.info(f"  → {len(items)}개 수집 (누적 {len(results)}개)")
+
+                # 다음 페이지 존재 여부
+                res = self.get(f"{self.BASE_URL}/{cat_id}", params={"page": page}, verify=False)
+                soup = BeautifulSoup(res.text, "html.parser")
+                next_link = soup.select_one('a[aria-label="Next"]')
+                if not next_link or not next_link.get("href"):
+                    break
+                page += 1
+                time.sleep(0.5)
+        return results
+
+    def crawl_page(self, page: int) -> list[dict]:
+        return []  # BaseCrawler 추상 메서드 충족용
+
+    def _crawl_category_page(self, cat_id: int, page: int) -> list[dict]:
+        res = self.get(f"{self.BASE_URL}/{cat_id}", params={"page": page}, verify=False)
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        items = []
+        for box in soup.select(".itemBox"):
+            name_tag = box.select_one("h4.title")
+            if not name_tag:
+                continue
+
+            full_name = name_tag.get_text(separator=" ", strip=True)
+            # 제목에서 HOT/ICE 추출 후 음료명 정리
+            if full_name.upper().startswith("HOT"):
+                ice_type = "HOT"
+                drink_name = full_name[3:].strip()
+            elif full_name.upper().startswith("ICE"):
+                ice_type = "ICE"
+                drink_name = full_name[3:].strip()
+            else:
+                ice_type = None
+                drink_name = full_name
+
+            extras = [li.get_text(" ", strip=True) for li in box.select("li.extra") if li.get_text(strip=True)]
+
+            def _extract(keyword: str) -> str | None:
+                for e in extras:
+                    if keyword in e:
+                        # "⚬ 열량(kcal) : 15" 또는 "⚬ 카페인 - 2shot : 156mg/45ml"
+                        # 마지막 숫자 그룹 추출
+                        nums = re.findall(r"[\d.]+", e.split(":")[-1])
+                        return nums[0] if nums else None
+                return None
+
+            items.append({
+                "brand":           self.brand_name,
+                "name":            drink_name,
+                "ice_type":        ice_type,
+                "volume_ml":       self.parse_volume_ml(next((e for e in extras if "용량" in e), "") or ""),
+                "calories":        self.safe_float(_extract("열량")),
+                "sodium_mg":       self.safe_float(_extract("나트륨")),
+                "carbs_g":         self.safe_float(_extract("탄수화물")),
+                "sugar_g":         self.safe_float(_extract("당류")),
+                "fat_g":           self.safe_float(_extract("지방") if "포화" not in (_extract("지방") or "") else None),
+                "saturated_fat_g": self.safe_float(_extract("포화지방")),
+                "protein_g":       self.safe_float(_extract("단백질")),
+                "caffeine_mg":     self.safe_float(_extract("카페인")),
+                "crawled_at":      datetime.utcnow().isoformat(),
+            })
+        return items
+
+
+# ══════════════════════════════════════════════════════════════
 # 브랜드 레지스트리 — 새 브랜드는 여기에만 추가
 # ══════════════════════════════════════════════════════════════
 BRAND_REGISTRY: dict[str, type[BaseCrawler]] = {
     "teracoffee":    TerraCoffeeCrawler,
     "mammothcoffee": MammothCoffeeCrawler,
     "megacoffee":    MegaCoffeeCrawler,
+    "composecoffee": ComposeCoffeeCrawler,
 }
 
 

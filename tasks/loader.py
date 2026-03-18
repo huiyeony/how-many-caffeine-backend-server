@@ -33,10 +33,11 @@ def transform(raw: list[dict]) -> list[dict]:
     - 브랜드명 정규화
     """
     BRAND_ALIAS = {
-        "테라 커피":     "테라커피",
-        "teracoffee":    "테라커피",
-        "mammothcoffee": "매머드커피",
-        "megacoffee":    "메가커피",
+        "테라 커피":      "테라커피",
+        "teracoffee":     "테라커피",
+        "mammothcoffee":  "매머드커피",
+        "megacoffee":     "메가커피",
+        "composecoffee":  "컴포즈",
     }
 
     transformed = []
