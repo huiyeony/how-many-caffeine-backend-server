@@ -17,6 +17,6 @@ jobs:
           script: |
             cd /home/ubuntu/howmanycaffeine
             git pull origin main
-            docker rm -f postgres_db || true
-            docker compose down
+            docker compose down --remove-orphans
+            docker rm -f postgres_db backend_server 2>/dev/null || true
             docker compose up -d --build
