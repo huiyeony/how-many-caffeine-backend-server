@@ -1,8 +1,30 @@
 import os
 import psycopg
+from psycopg_pool import AsyncConnectionPool
+from core.config import settings
+
+_pool: AsyncConnectionPool | None = None
+
+
+async def init_pool():
+    global _pool
+    _pool = AsyncConnectionPool(settings.database_url, min_size=2, max_size=10, open=False)
+    await _pool.open()
+
+
+async def close_pool():
+    if _pool:
+        await _pool.close()
+
+
+def get_pool() -> AsyncConnectionPool:
+    if _pool is None:
+        raise RuntimeError("Connection pool is not initialized.")
+    return _pool
+
 
 def get_db_connection():
-    """DB 접속 정보 공통 함수"""
+    """DB 접속 정보 공통 함수 (init_db 전용 동기 연결)"""
     return psycopg.connect(
         host=os.getenv('POSTGRES_HOST', 'db'),
         dbname=os.getenv('POSTGRES_DB', 'caffeine_db'),
@@ -21,7 +43,7 @@ def init_db():
             
             # 2. 신규 테이블 생성 (IF NOT EXISTS로 기존 데이터 보호)
             cur.execute("""
-                DROP TABLE drinks;
+                DROP TABLE IF EXISTS drinks;
                 CREATE EXTENSION IF NOT EXISTS vector;    -- pgvector (벡터 검색용) [cite: 11]
                 CREATE EXTENSION IF NOT EXISTS pg_trgm;  -- pg_trgm (오타 교정 및 유사 검색용) [cite: 41]
 

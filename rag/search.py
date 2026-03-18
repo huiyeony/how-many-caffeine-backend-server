@@ -3,6 +3,7 @@ import psycopg
 # from rag.embedding import embeddings
 from langsmith import traceable
 from core.config import settings
+from core.database import get_pool
 from dotenv import load_dotenv
 
 from rag.embedding import get_query_embedding
@@ -22,7 +23,7 @@ async def search_drinks_hybrid(
     RRF 하이브리드 검색 함수입니다.
     """
     # 1. 질문 임베딩 생성 (동기)
-    query_vector = get_query_embedding(query_text)
+    query_vector = await get_query_embedding(query_text)
     
     # 2. 하이브리드 검색 SQL (psycopg3 파라미터 형식 적용)
     # psycopg는 %(name)s 형식을 사용합니다.
@@ -69,10 +70,10 @@ async def search_drinks_hybrid(
     candidates = []
     
     # 3. psycopg.connect를 사용하여 DB 실행    
-    with psycopg.connect(settings.database_url) as conn:
-        with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-            cur.execute(sql_query, params)
-            candidates = cur.fetchall()
+    async with get_pool().connection() as conn:
+        async with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            await cur.execute(sql_query, params)
+            candidates = await cur.fetchall()
 
     if not candidates:
         return []

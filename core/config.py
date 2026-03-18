@@ -25,33 +25,31 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
 
-    # AWS document 설정 로드
-    AWS_ACCESS_KEY_ID: str
-    AWS_SECRET_ACCESS_KEY: str
-    AWS_S3_BUCKET_NAME: str
+    # AWS (미사용 - S3 연동 시 필수값으로 변경)
+    AWS_ACCESS_KEY_ID: str | None = None
+    AWS_SECRET_ACCESS_KEY: str | None = None
+    AWS_S3_BUCKET_NAME: str | None = None
     AWS_REGION: str = "ap-northeast-2"
 
-    # JWT
-    JWT_SECRET_KEY: str
+    # JWT (미사용 - 인증 기능 구현 시 필수값으로 변경)
+    JWT_SECRET_KEY: str | None = None
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_HOURS: int = 24
-
-    # Refresh Token
     REFRESH_TOKEN_EXPIRE_DAY: int = 7
 
-    # Google OAuth (optional)
+    # Google OAuth (미사용 - OAuth 구현 시 필수값으로 변경)
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
     GOOGLE_REDIRECT_URI: str | None = None
 
-    # Ollama base URL
-    OLLAMA_BASE_URL: str
+    # Ollama (미사용 - 로컬 모델 사용 시 필수값으로 변경)
+    OLLAMA_BASE_URL: str | None = None
 
     # Frontend
-    FRONTEND_URL: str = "http://localhost:3000"  # 프론트엔드 URL
+    FRONTEND_URL: str = "http://localhost:3000"
 
-    # Redis
-    REDIS_URL: str
+    # Redis (미사용 - 세션/캐시 연동 시 필수값으로 변경)
+    REDIS_URL: str | None = None
 
     # LangGraph
     LANGSMITH_API_KEY: str
