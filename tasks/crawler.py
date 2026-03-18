@@ -206,11 +206,85 @@ class MammothCoffeeCrawler(BaseCrawler):
 
 
 # ══════════════════════════════════════════════════════════════
+# 메가커피
+# ══════════════════════════════════════════════════════════════
+class MegaCoffeeCrawler(BaseCrawler):
+    brand_name = "megacoffee"
+    MENU_URL   = "https://www.mega-mgccoffee.com/menu/menu.php"
+
+    def crawl(self) -> list[dict]:
+        results = []
+        page = 1
+        while True:
+            logger.info(f"[{self.brand_name}] 페이지 {page} 크롤링 중")
+            items = self.crawl_page(page)
+            if not items:
+                break
+            results.extend(items)
+            logger.info(f"  → {len(items)}개 수집 (누적 {len(results)}개)")
+
+            # 다음 페이지 존재 여부 확인
+            res = self.get(self.MENU_URL, params={"page": page, "list_checkbox_all": "all"})
+            soup = BeautifulSoup(res.text, "html.parser")
+            page_links = [a.get("data-page", "") for a in soup.select("#board_page li a.board_page_link")]
+            max_page = max((int(p) for p in page_links if p.isdigit()), default=page)
+            if page >= max_page:
+                break
+            page += 1
+            time.sleep(0.5)
+        return results
+
+    def crawl_page(self, page: int) -> list[dict]:
+        res = self.get(self.MENU_URL, params={"page": page, "list_checkbox_all": "all"})
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        items = []
+        for li in soup.select("#menu_list > li"):
+            name_tag = li.select_one(".cont_text_title b")
+            if not name_tag:
+                continue
+            name = name_tag.get_text(strip=True)
+
+            ice_label = li.select_one(".cont_gallery_list_label")
+            ice_type = ice_label.get_text(strip=True) if ice_label else None
+
+            modal = li.select_one(".inner_modal")
+            if not modal:
+                continue
+
+            infos = [d.get_text(strip=True) for d in modal.select(".cont_text .cont_text_inner")]
+            volume_text  = next((t for t in infos if "ml" in t), None)
+            calorie_text = next((t for t in infos if "kcal" in t), None)
+
+            nutrients = {
+                n.split()[0]: self.safe_float(re.sub(r"[^\d.]", "", n.split()[-1]))
+                for n in (li.get_text(strip=True) for li in modal.select(".cont_list ul li"))
+                if len(n.split()) >= 2
+            }
+
+            items.append({
+                "brand":           self.brand_name,
+                "name":            name,
+                "ice_type":        ice_type,
+                "volume_ml":       self.parse_volume_ml(volume_text) if volume_text else None,
+                "calories":        self.safe_float(re.sub(r"[^\d.]", "", calorie_text.replace("1회 제공량", ""))) if calorie_text else None,
+                "saturated_fat_g": nutrients.get("포화지방"),
+                "sugar_g":         nutrients.get("당류"),
+                "sodium_mg":       nutrients.get("나트륨"),
+                "protein_g":       nutrients.get("단백질"),
+                "caffeine_mg":     nutrients.get("카페인"),
+                "crawled_at":      datetime.utcnow().isoformat(),
+            })
+        return items
+
+
+# ══════════════════════════════════════════════════════════════
 # 브랜드 레지스트리 — 새 브랜드는 여기에만 추가
 # ══════════════════════════════════════════════════════════════
 BRAND_REGISTRY: dict[str, type[BaseCrawler]] = {
     "teracoffee":    TerraCoffeeCrawler,
     "mammothcoffee": MammothCoffeeCrawler,
+    "megacoffee":    MegaCoffeeCrawler,
 }
 
 
