@@ -25,6 +25,5 @@ jobs:
               sleep 3
             done
             echo "PostgreSQL is ready."
-            docker exec backend_server python3 -c "import psycopg_pool; print('psycopg_pool version:', psycopg_pool.__version__)"
-            docker exec backend_server python3 -c "import boto3; print('boto3 installed')"
+            docker exec backend_server python3 -c "from core.config import settings; import psycopg; conn = psycopg.connect(settings.database_url); print('direct psycopg connection OK'); conn.close()"
             docker exec backend_server python3 /app/tasks/run_pipeline.py
