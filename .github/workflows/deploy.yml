@@ -17,5 +17,6 @@ jobs:
           script: |
             cd /home/ubuntu/howmanycaffeine
             git pull origin main
+            docker rm -f postgres_db || true
             docker compose down
             docker compose up -d --build
