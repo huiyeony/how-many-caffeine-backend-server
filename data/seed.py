@@ -7,13 +7,7 @@ async def seed_initial_data(csv_path: str = "data/drinks_silver.csv"):
     load_dotenv()
     with get_db_connection() as conn: 
         with conn.cursor() as cur:
-            # # 1. 데이터 존재 여부 확인
-            # cur.execute("SELECT EXISTS (SELECT 1 FROM drinks LIMIT 1);") #
-            # if cur.fetchone()[0]:
-            #     print(">>> [Seed] 이미 데이터가 존재합니다. 삽입을 건너뜁니다.")
-            #     return
-
-            # 2. CSV 로드 (DictReader 활용)
+            # CSV 로드
             raw_data = []
             try:
                 with open(csv_path, 'r', encoding='utf-8') as f:

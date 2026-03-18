@@ -1,16 +1,8 @@
 from typing import Optional
 import psycopg
-# from rag.embedding import embeddings
 from langsmith import traceable
-from core.config import settings
 from core.database import get_pool
-from dotenv import load_dotenv
-
 from rag.embedding import get_query_embedding
-
-
-
-load_dotenv()
 
 
 @traceable()

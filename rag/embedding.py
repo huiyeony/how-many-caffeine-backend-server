@@ -1,5 +1,4 @@
 from typing import List
-from core.config import settings
 from rag.model import embeddings
 
 

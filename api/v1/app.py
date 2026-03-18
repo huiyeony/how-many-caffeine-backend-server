@@ -1,4 +1,3 @@
-# from data.seed import seed_initial_data
 from data.seed import seed_initial_data
 from rag.promps import CAFFEINE_GUIDE_PROMPT
 from rag.tool import search_caffeine_by_brands
