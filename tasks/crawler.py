@@ -505,85 +505,6 @@ class PaikdabangCrawler(BaseCrawler):
 
 
 # ══════════════════════════════════════════════════════════════
-# 투썸플레이스
-# ══════════════════════════════════════════════════════════════
-class TwosomeCrawler(BaseCrawler):
-    brand_name   = "twosome"
-    LIST_URL     = "https://mo.twosome.co.kr/mn/menuInfoListAjax.json"
-    DETAIL_URL   = "https://mo.twosome.co.kr/mn/menuInfoDetail.do"
-    HEADERS      = {
-        "User-Agent": "Mozilla/5.0",
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": "https://mo.twosome.co.kr/mn/menuInfoList.do",
-    }
-
-    def crawl(self) -> list[dict]:
-        # 커피/음료 카테고리(grtCd=1)만 수집
-        res = requests.post(self.LIST_URL, headers=self.HEADERS,
-                            data={"grtCd": "1"}, timeout=15)
-        menu_list = res.json().get("fetchResultListSet", [])
-        logger.info(f"[{self.brand_name}] 메뉴 {len(menu_list)}개 수집 시작")
-
-        results = []
-        for i, item in enumerate(menu_list):
-            menu_cd = item.get("MENU_CD")
-            menu_nm = (item.get("MENU_NM") or "").strip()
-            if not menu_cd or not menu_nm:
-                continue
-
-            record = self._crawl_detail(menu_cd, menu_nm)
-            if record:
-                results.append(record)
-
-            if (i + 1) % 10 == 0:
-                logger.info(f"  → {i + 1}/{len(menu_list)} 처리 중")
-            time.sleep(0.3)
-
-        return results
-
-    def crawl_page(self, page: int) -> list[dict]:
-        return []  # BaseCrawler 추상 메서드 충족용
-
-    def _crawl_detail(self, menu_cd: str, menu_nm: str) -> dict | None:
-        res = self.get(self.DETAIL_URL, params={"menuCd": menu_cd})
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        ul = soup.select_one("ul.text_list_ts24_type02")
-        if not ul:
-            return None
-
-        nutrients = {}
-        for li in ul.select("li"):
-            label = li.select_one("span.label")
-            value = li.select_one("span.value")
-            if label and value:
-                nutrients[label.get_text(strip=True)] = value.get_text(strip=True)
-
-        def _get(key_part: str) -> float | None:
-            for k, v in nutrients.items():
-                if key_part in k:
-                    # "186" 또는 "19/19" 형태에서 첫 번째 숫자 추출
-                    num = re.split(r"[/\s]", v.strip())[0]
-                    return self.safe_float(num)
-            return None
-
-        volume_text = nutrients.get("1회 제공량", "")
-
-        return {
-            "brand":           self.brand_name,
-            "name":            menu_nm,
-            "caffeine_mg":     _get("카페인"),
-            "calories":        _get("열량"),
-            "sugar_g":         _get("당류"),
-            "protein_g":       _get("단백질"),
-            "saturated_fat_g": _get("포화지방"),
-            "sodium_mg":       _get("나트륨"),
-            "volume_ml":       self.parse_volume_ml(volume_text),
-            "crawled_at":      datetime.utcnow().isoformat(),
-        }
-
-
-# ══════════════════════════════════════════════════════════════
 # 하삼동커피
 # ══════════════════════════════════════════════════════════════
 class HasamdongCrawler(BaseCrawler):
@@ -685,7 +606,7 @@ BRAND_REGISTRY: dict[str, type[BaseCrawler]] = {
     "composecoffee": ComposeCoffeeCrawler,
     "starbucks":     StarbucksCrawler,
     "paikdabang":    PaikdabangCrawler,
-    "twosome":       TwosomeCrawler,
+
     "hasamdong":     HasamdongCrawler,
 }
 
