@@ -15,7 +15,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/howmanycaffeine
+            cd /home/ubuntu/caffeine-backend
             git reset --hard origin/main
             git pull origin main
             docker compose down
