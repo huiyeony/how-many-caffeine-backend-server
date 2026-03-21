@@ -48,8 +48,6 @@ services:
     # [수정 2] 볼륨 매핑 추가 (로컬 소스를 컨테이너에 실시간 동기화)
     volumes:
       - .:/app # 로컬의 backend 폴더를 컨테이너의 /app 폴더로 연결
-    ports:
-      - "8000:8000"
     env_file:
       - .env.production
     environment:
@@ -59,6 +57,32 @@ services:
       # - OLLAMA_BASE_URL=http://ollama:11434 # 로컬 모델 URL 주석 처리
       - PYTHONUNBUFFERED=1
 
+  # 4. Apache Superset (BI 대시보드)
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    restart: always
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8088:8088"
+    environment:
+      - SUPERSET_SECRET_KEY=howmanycaffeine-superset-secret-key
+    volumes:
+      - superset_home:/app/superset_home
+
 volumes:
   postgres_data:
   ollama_data:
+  superset_home:
