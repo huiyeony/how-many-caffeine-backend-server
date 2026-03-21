@@ -66,8 +66,18 @@ services:
       - api
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
 
   superset:
     image: apache/superset:latest
@@ -86,3 +96,5 @@ volumes:
   postgres_data:
   ollama_data:
   superset_home:
+  certbot_www:
+  certbot_conf:
