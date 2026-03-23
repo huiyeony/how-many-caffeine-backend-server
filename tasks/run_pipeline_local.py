@@ -9,15 +9,26 @@ async def main():
     await init_pool()
     print(">>> [Local Pipeline] 시작")
 
+    failed = []
     for brand, crawler_cls in BRAND_REGISTRY.items():
         print(f">>> [Local Pipeline] {brand} 크롤링 중...")
-        raw = crawler_cls().crawl()
-        print(f">>> [Local Pipeline] {brand} {len(raw)}개 수집, DB 적재 중...")
-        records = transform(raw)
-        await load_to_db(records)
-        print(f">>> [Local Pipeline] {brand} 완료")
+        try:
+            raw = crawler_cls().crawl()
+            if not raw:
+                print(f">>> [Local Pipeline] {brand} 수집 결과 없음, 건너뜀")
+                continue
+            print(f">>> [Local Pipeline] {brand} {len(raw)}개 수집, DB 적재 중...")
+            records = transform(raw)
+            await load_to_db(records)
+            print(f">>> [Local Pipeline] {brand} 완료")
+        except Exception as e:
+            print(f">>> [Local Pipeline] {brand} 실패 (건너뜀): {e}")
+            failed.append(brand)
 
-    print(">>> [Local Pipeline] 전체 완료")
+    if failed:
+        print(f">>> [Local Pipeline] 완료 (실패 브랜드: {', '.join(failed)})")
+    else:
+        print(">>> [Local Pipeline] 전체 완료")
     await close_pool()
 
 

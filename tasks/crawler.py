@@ -597,6 +597,269 @@ class HasamdongCrawler(BaseCrawler):
 
 
 # ══════════════════════════════════════════════════════════════
+# 이디야
+# ══════════════════════════════════════════════════════════════
+class EdiyaCrawler(BaseCrawler):
+    brand_name   = "ediya"
+    BASE_URL     = "https://ediya.com/contents/drink.html"
+    AJAX_URL     = "https://ediya.com/inc/ajax_brand.php"
+    PRODUCT_CATE = "7"
+
+    def crawl(self) -> list[dict]:
+        results = []
+        page = 1
+        while True:
+            res = self.get(self.AJAX_URL, params={
+                "product_cate": self.PRODUCT_CATE,
+                "gubun": "menu_more",
+                "chked_val": "",
+                "skeyword": "",
+                "page": page,
+            })
+            soup = BeautifulSoup(res.text, "html.parser")
+            lis = [li for li in soup.find_all("li") if li.find(class_="pro_detail")]
+            if not lis:
+                break
+            items, _ = self._parse_lis(lis)
+            results.extend(items)
+            page += 1
+            time.sleep(0.3)
+
+        # (name, ice_type) 중복 시 카페인 높은 쪽(일반 버전) 우선 유지
+        best: dict[tuple, dict] = {}
+        for item in results:
+            key = (item["name"], item["ice_type"])
+            if key not in best or (item["caffeine_mg"] or 0) > (best[key]["caffeine_mg"] or 0):
+                best[key] = item
+        return list(best.values())
+
+    def crawl_page(self, page: int) -> list[dict]:
+        return []
+
+    def _parse_lis(self, lis) -> tuple[list[dict], list[str]]:
+        items, ids = [], []
+        for li in lis:
+            detail = li.select_one("div.pro_detail")
+            if not detail:
+                continue
+            nutri_id = detail.get("id", "")  # e.g. "nutri_1186"
+
+            name_tag = li.select_one("div.menu_tt a span")
+            if not name_tag:
+                continue
+            full_name = name_tag.get_text(strip=True)
+
+            # "(L) ICED 거문도쑥 라떼" → size=(L), ice_type, 음료명
+            m = re.match(r"^\(([^)]+)\)\s+(HOT|ICED|ICE)\s+(.+)$", full_name, re.IGNORECASE)
+            if m:
+                size      = m.group(1).strip()        # "L", "EX", "M" 등
+                ice_type  = "hot" if m.group(2).upper() == "HOT" else "ice"
+                drink_name = f"{m.group(3).strip()}({size})"  # "거문도쑥 라떼(L)"
+            else:
+                drink_name = full_name
+                name_lower = full_name.lower()
+                if any(k in name_lower for k in ["iced", "아이스", "cold"]):
+                    ice_type = "ice"
+                elif any(k in name_lower for k in ["hot", "핫", "따뜻"]):
+                    ice_type = "hot"
+                else:
+                    ice_type = None
+
+            # 영양정보: dd 값 형식 "(359kcal)" → 숫자만 추출
+            def _num(text: str) -> float | None:
+                nums = re.findall(r"[\d.]+", text)
+                return float(nums[0]) if nums else None
+
+            nutrients: dict[str, str] = {}
+            nutri_div = li.select_one("div.pro_nutri")
+            if nutri_div:
+                for dl in nutri_div.find_all("dl"):
+                    dt = dl.find("dt")
+                    dd = dl.find("dd")
+                    if dt and dd:
+                        nutrients[dt.get_text(strip=True)] = dd.get_text(strip=True)
+
+            size_div = li.select_one("div.pro_size")
+
+            items.append({
+                "brand":           self.brand_name,
+                "name":            drink_name,
+                "ice_type":        ice_type,
+                "volume_ml":       self.parse_volume_ml(size_div.get_text()) if size_div else None,
+                "calories":        _num(nutrients.get("칼로리", "")),
+                "sugar_g":         _num(nutrients.get("당류", "") or nutrients.get(" 당류", "")),
+                "protein_g":       _num(nutrients.get("단백질", "") or nutrients.get(" 단백질", "")),
+                "saturated_fat_g": _num(nutrients.get("포화지방", "") or nutrients.get(" 포화지방", "")),
+                "sodium_mg":       _num(nutrients.get("나트륨", "") or nutrients.get(" 나트륨", "")),
+                "caffeine_mg":     _num(nutrients.get("카페인", "") or nutrients.get(" 카페인", "")),
+                "crawled_at":      datetime.utcnow().isoformat(),
+            })
+            ids.append(nutri_id)
+        return items, ids
+
+
+# ══════════════════════════════════════════════════════════════
+# 커피빈
+# ══════════════════════════════════════════════════════════════
+class CoffeeBeanCrawler(BaseCrawler):
+    brand_name = "coffeebean"
+    BASE_URL   = "https://www.coffeebeankorea.com/menu/list.asp"
+    # 음료 카테고리만 (푸드/상품 제외)
+    CATEGORIES = [32, 13, 14, 18, 17, 12, 11, 26, 24]
+
+    def crawl(self) -> list[dict]:
+        results = []
+        for cat in self.CATEGORIES:
+            logger.info(f"[{self.brand_name}] 카테고리 {cat} 크롤링 중")
+            items = self._crawl_category(cat)
+            results.extend(items)
+            logger.info(f"  → {len(items)}개 수집 (누적 {len(results)}개)")
+            time.sleep(0.5)
+        return results
+
+    def crawl_page(self, page: int) -> list[dict]:
+        return []
+
+    def _crawl_category(self, category: int) -> list[dict]:
+        res = self.get(self.BASE_URL, params={"category": category})
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        items = []
+        for li in soup.select("ul.menu_list li"):
+            kor_tag = li.select_one("span.kor")
+            eng_tag = li.select_one("span.eng")
+            if not kor_tag:
+                continue
+
+            name     = kor_tag.get_text(strip=True)
+            eng_name = eng_tag.get_text(strip=True).lower() if eng_tag else ""
+
+            if eng_name.startswith("iced") or " iced " in eng_name:
+                ice_type = "ice"
+            elif eng_name.startswith("hot") or " hot " in eng_name:
+                ice_type = "hot"
+            else:
+                ice_type = None
+
+            # div.info > dl : dt=값, dd=영양소명+단위
+            nutrients: dict[str, float | None] = {}
+            for dl in li.select("div.info dl"):
+                dt = dl.find("dt")
+                dd = dl.find("dd")
+                if dt and dd:
+                    key  = dd.get_text(strip=True)
+                    nums = re.findall(r"[\d.]+", dt.get_text(strip=True))
+                    nutrients[key] = float(nums[0]) if nums else None
+
+            def _get(keyword: str) -> float | None:
+                for k, v in nutrients.items():
+                    if keyword in k:
+                        return v
+                return None
+
+            items.append({
+                "brand":           self.brand_name,
+                "name":            name,
+                "ice_type":        ice_type,
+                "calories":        _get("열량"),
+                "sodium_mg":       _get("나트륨"),
+                "carbs_g":         _get("탄수화물"),
+                "sugar_g":         _get("당"),
+                "protein_g":       _get("단백질"),
+                "caffeine_mg":     _get("카페인"),
+                "saturated_fat_g": _get("포화지방"),
+                "crawled_at":      datetime.utcnow().isoformat(),
+            })
+        return items
+
+
+# ══════════════════════════════════════════════════════════════
+# 할리스
+# ══════════════════════════════════════════════════════════════
+class HollysCrawler(BaseCrawler):
+    brand_name  = "hollys"
+    BASE_URL    = "https://www.hollys.co.kr/menu"
+    # 음료 카테고리만 (푸드/MD 제외)
+    CATEGORIES  = ["espresso", "signature", "hollyccino", "juice", "tea"]
+    _HEADERS    = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer":    "https://www.hollys.co.kr/",
+    }
+
+    def crawl(self) -> list[dict]:
+        results = []
+        for cat in self.CATEGORIES:
+            logger.info(f"[{self.brand_name}] 카테고리 {cat} 크롤링 중")
+            items = self._crawl_category(cat)
+            results.extend(items)
+            logger.info(f"  → {len(items)}개 수집 (누적 {len(results)}개)")
+            time.sleep(0.5)
+        return results
+
+    def crawl_page(self, page: int) -> list[dict]:
+        return []
+
+    def _crawl_category(self, cat: str) -> list[dict]:
+        res = requests.get(f"{self.BASE_URL}/{cat}.do", headers=self._HEADERS, timeout=15)
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        items = []
+        for view1 in soup.select("div.menu_view01"):
+            item_id = view1.get("id", "").replace("menuView1_", "")
+            if not item_id:
+                continue
+
+            name_tag = view1.select_one("div.menu_detail p span")
+            if not name_tag:
+                continue
+            name = name_tag.get_text(strip=True)
+
+            view2 = soup.find(id=f"menuView2_{item_id}")
+            if not view2:
+                continue
+
+            table = view2.find("table")
+            if not table:
+                continue
+
+            headers = [th.get_text(strip=True) for th in table.select("thead th")]
+
+            for tr in table.select("tbody tr"):
+                cells = [c.get_text(strip=True) for c in tr.find_all(["th", "td"])]
+                if len(cells) < 2:
+                    continue
+
+                ice_raw = cells[0].upper()
+                if "ICE" in ice_raw:
+                    ice_type = "ice"
+                elif "HOT" in ice_raw:
+                    ice_type = "hot"
+                else:
+                    ice_type = None
+
+                def _col(keyword: str) -> float | None:
+                    for i, h in enumerate(headers):
+                        if keyword in h and i < len(cells):
+                            nums = re.findall(r"[\d.]+", cells[i])
+                            return float(nums[0]) if nums else None
+                    return None
+
+                items.append({
+                    "brand":           self.brand_name,
+                    "name":            name,
+                    "ice_type":        ice_type,
+                    "calories":        _col("칼로리"),
+                    "sugar_g":         _col("당류"),
+                    "protein_g":       _col("단백질"),
+                    "saturated_fat_g": _col("포화지방"),
+                    "sodium_mg":       _col("나트륨"),
+                    "caffeine_mg":     _col("카페인"),
+                    "crawled_at":      datetime.utcnow().isoformat(),
+                })
+        return items
+
+
+# ══════════════════════════════════════════════════════════════
 # 브랜드 레지스트리 — 새 브랜드는 여기에만 추가
 # ══════════════════════════════════════════════════════════════
 BRAND_REGISTRY: dict[str, type[BaseCrawler]] = {
@@ -606,8 +869,10 @@ BRAND_REGISTRY: dict[str, type[BaseCrawler]] = {
     "composecoffee": ComposeCoffeeCrawler,
     "starbucks":     StarbucksCrawler,
     "paikdabang":    PaikdabangCrawler,
-
     "hasamdong":     HasamdongCrawler,
+    "ediya":         EdiyaCrawler,
+    "coffeebean":    CoffeeBeanCrawler,
+    "hollys":        HollysCrawler,
 }
 
 
