@@ -40,3 +40,20 @@ async def run_rag(q: str, history: list) -> str:
         return final.content
 
     return ai_msg.content
+
+
+async def run_rag_stream(q: str, history: list):
+    """RAG 실행. 텍스트 청크를 순서대로 yield."""
+    history.append(HumanMessage(content=q))
+    ai_msg = await llm_with_tools.ainvoke(history)
+
+    if ai_msg.tool_calls:
+        history.append(ai_msg)
+        for tool_call in ai_msg.tool_calls:
+            result = await _tools_map[tool_call["name"]].ainvoke(tool_call)
+            history.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
+        async for chunk in llm.astream(history):
+            if chunk.content:
+                yield chunk.content
+    else:
+        yield ai_msg.content

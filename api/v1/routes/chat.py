@@ -1,10 +1,12 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from psycopg.rows import dict_row
 
 from core.auth import get_current_user
 from core.database import get_pool
-from rag.pipeline import build_history, run_rag
+from rag.pipeline import build_history, run_rag_stream
 
 router = APIRouter(prefix="/chatspaces")
 
@@ -57,20 +59,25 @@ async def send_message(
             )
             rows = await cur.fetchall()
 
-    # 2. RAG 응답 생성 (DB 트랜잭션 밖)
     history = build_history(rows)
-    answer = await run_rag(body.content, history)
 
-    # 3. 유저 메시지 + 어시스턴트 응답 한 트랜잭션으로 저장
-    async with pool.connection() as conn:
-        async with conn.cursor() as cur:
-            await cur.execute(
-                "INSERT INTO chat (chatspace_id, role, content) VALUES (%s, 'user', %s)",
-                (chatspace_id, body.content),
-            )
-            await cur.execute(
-                "INSERT INTO chat (chatspace_id, role, content) VALUES (%s, 'assistant', %s)",
-                (chatspace_id, answer),
-            )
+    async def generate():
+        full_answer = ""
+        async for chunk in run_rag_stream(body.content, history):
+            full_answer += chunk
+            yield f"data: {json.dumps({'chunk': chunk})}\n\n"
 
-    return {"answer": answer}
+        # 스트리밍 완료 후 한 트랜잭션으로 저장
+        async with pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO chat (chatspace_id, role, content) VALUES (%s, 'user', %s)",
+                    (chatspace_id, body.content),
+                )
+                await cur.execute(
+                    "INSERT INTO chat (chatspace_id, role, content) VALUES (%s, 'assistant', %s)",
+                    (chatspace_id, full_answer),
+                )
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
