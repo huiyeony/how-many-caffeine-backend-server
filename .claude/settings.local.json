@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.starbucks.co.kr)",
+      "Bash(python3:*)",
+      "WebSearch",
+      "WebFetch(domain:goc-coffee.com)",
+      "WebFetch(domain:paikdabang.com)",
+      "WebFetch(domain:www.banapresso.com)",
+      "WebFetch(domain:order.banapresso.com)",
+      "Bash(curl -s \"https://order.banapresso.com/\")",
+      "Bash(curl -s \"https://order.banapresso.com/assets/main.BSSIX8wJ.js\")",
+      "Bash(curl -s \"https://order.banapresso.com/.well-known\")",
+      "Bash(curl -sv -L \"https://www.atwosome.co.kr\" -H \"User-Agent: Mozilla/5.0\")",
+      "WebFetch(domain:www.gongcha.co.kr)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

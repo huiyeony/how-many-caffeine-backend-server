@@ -51,22 +51,13 @@ async def send_message(
     history = build_history(rows)
     answer = await run_rag(body.content, history)
 
-    # 3. 어시스턴트 응답 저장 + 채팅방 제목 자동 생성
+    # 3. 어시스턴트 응답 저장 
     async with pool.connection() as conn:
         async with conn.cursor(row_factory=dict_row) as cur:
             await cur.execute(
                 "INSERT INTO chat (chatspace_id, role, content) VALUES (%s, 'assistant', %s)",
                 (chatspace_id, answer),
             )
-            await cur.execute(
-                "SELECT title FROM chatspace WHERE chatspace_id = %s", (chatspace_id,)
-            )
-            row = await cur.fetchone()
-            if row and not row["title"]:
-                title = body.content[:30] + "..." if len(body.content) > 30 else body.content
-                await cur.execute(
-                    "UPDATE chatspace SET title = %s WHERE chatspace_id = %s",
-                    (title, chatspace_id),
-                )
+            
 
     return {"answer": answer}
