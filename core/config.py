@@ -52,10 +52,10 @@ class Settings(BaseSettings):
     REDIS_URL: str | None = None
 
     # LangGraph
-    LANGSMITH_API_KEY: str
-    LANGSMITH_TRACING: bool
+    LANGSMITH_API_KEY: str | None = None
+    LANGSMITH_TRACING: bool = False
     LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
-    LANGSMITH_PROJECT: str
+    LANGSMITH_PROJECT: str | None = None
 
     # Environment
     ENVIRONMENT: Literal["development", "production"] = "development"

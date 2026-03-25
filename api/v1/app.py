@@ -1,16 +1,14 @@
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from psycopg.rows import dict_row
 
 from core.config import settings
 from core.database import close_pool, init_db, init_pool, get_pool
 from tasks.pipeline import run_pipeline
-from rag.pipeline import build_history, run_rag
 from api.v1.routes.auth import router as auth_router
 from api.v1.routes.chatspace import router as chatspace_router
 from api.v1.routes.chat import router as chat_router
@@ -65,17 +63,3 @@ app.include_router(chatspace_router)
 app.include_router(chat_router)
 
 
-@app.get("/ask")
-async def ask_caffeine(q: str = Query(...), chatspace_id: str = Query(...)):
-    pool = get_pool()
-    async with pool.connection() as conn:
-        async with conn.cursor(row_factory=dict_row) as cur:
-            await cur.execute(
-                "SELECT role, content FROM chat WHERE chatspace_id = %s ORDER BY created_at ASC",
-                (chatspace_id,),
-            )
-            rows = await cur.fetchall()
-
-    history = build_history(rows)
-    answer = await run_rag(q, history)
-    return {"answer": answer}
