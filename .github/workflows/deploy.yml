@@ -20,8 +20,10 @@ jobs:
             git pull origin main
             docker compose down
             docker compose up -d --build
-            echo "Waiting for PostgreSQL container to start..."
-            sleep 10
+            echo "Waiting for PostgreSQL container to exist..."
+            until docker inspect postgres_db > /dev/null 2>&1; do
+              sleep 3
+            done
             echo "Waiting for PostgreSQL to be ready..."
             until docker exec postgres_db pg_isready -U myuser -d caffeine_db; do
               sleep 3
