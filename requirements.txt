@@ -19,6 +19,7 @@ apscheduler
 openai
 langchain-openai
 boto3
+pandas
 python-jose[cryptography]
 passlib[bcrypt]
 authlib

@@ -3,6 +3,11 @@
 .env.production
 .env.*
 *.pem
+docker-compose.override.yml
+terraform/terraform.tfvars
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
 
 # 파이썬 가상환경
 venv/

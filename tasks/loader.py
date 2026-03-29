@@ -1,6 +1,8 @@
 import json
 
 import boto3
+import numpy as np
+import pandas as pd
 import psycopg
 
 from core.config import settings
@@ -24,6 +26,34 @@ def download_raw_from_s3(s3_key: str) -> list[dict]:
     return json.loads(obj["Body"].read().decode("utf-8"))
 
 
+BRAND_ALIAS = {
+    "테라 커피":      "테라커피",
+    "teracoffee":     "테라커피",
+    "mammothcoffee":  "매머드커피",
+    "megacoffee":     "메가커피",
+    "composecoffee":  "컴포즈",
+    "starbucks":      "스타벅스",
+    "paikdabang":     "빽다방",
+    "hasamdong":      "하삼동커피",
+    "ediya":          "이디야",
+    "coffeebean":     "커피빈",
+    "hollys":         "할리스",
+}
+
+
+def _infer_ice_type(row: pd.Series) -> str:
+    """ice_type: 크롤러 제공값 우선, 없으면 음료명에서 추론"""
+    raw_ice = (row["ice_type"] or "").upper()
+    if raw_ice in ("HOT", "ICE"):
+        return raw_ice.lower()
+    name = row["drink_name"].lower()
+    if any(k in name for k in ["아이스", "ice", "cold"]):
+        return "ice"
+    if any(k in name for k in ["핫", "hot", "따뜻"]):
+        return "hot"
+    return "ice"
+
+
 def transform(raw: list[dict]) -> list[dict]:
     """
     ELT의 T 단계: raw 원본 → drinks 테이블 스키마로 변환
@@ -32,58 +62,23 @@ def transform(raw: list[dict]) -> list[dict]:
     - ice_type 추론 (음료명 기반)
     - 브랜드명 정규화
     """
-    BRAND_ALIAS = {
-        "테라 커피":      "테라커피",
-        "teracoffee":     "테라커피",
-        "mammothcoffee":  "매머드커피",
-        "megacoffee":     "메가커피",
-        "composecoffee":  "컴포즈",
-        "starbucks":      "스타벅스",
-        "paikdabang":     "빽다방",
-        "hasamdong":      "하삼동커피",
-        "ediya":          "이디야",
-        "coffeebean":     "커피빈",
-        "hollys":         "할리스",
-    }
+    df = pd.DataFrame(raw)
 
-    transformed = []
-    for item in raw:
-        brand = BRAND_ALIAS.get(item.get("brand", ""), item.get("brand", ""))
-        drink_name = (item.get("name") or "").strip()
+    # 브랜드 정규화
+    df["brand"] = df["brand"].map(lambda b: BRAND_ALIAS.get(b, b))
 
-        if not drink_name:
-            continue
+    # 음료명 정제 및 빈 값 제거
+    df["drink_name"] = df["name"].fillna("").str.strip()
+    df = df[df["drink_name"] != ""]
 
-        # 카페인 정제 (크롤러 필드명: caffeine_mg)
-        try:
-            caffeine = float(item.get("caffeine_mg") or 0.0)
-        except (ValueError, TypeError):
-            caffeine = 0.0
+    # 카페인 정제
+    df["caffeine_amount"] = pd.to_numeric(df["caffeine_mg"], errors="coerce").fillna(0.0)
+    df = df[df["caffeine_amount"].between(0, 1000)]
 
-        if caffeine < 0 or caffeine > 1000:
-            continue
+    # ice_type 추론
+    df["ice_type"] = df.apply(_infer_ice_type, axis=1)
 
-        # ice_type: 크롤러가 이미 제공한 경우 우선 사용, 없으면 음료명에서 추론
-        raw_ice = (item.get("ice_type") or "").upper()
-        if raw_ice in ("HOT", "ICE"):
-            ice_type = raw_ice.lower()
-        else:
-            name_lower = drink_name.lower()
-            if any(k in name_lower for k in ["아이스", "ice", "cold"]):
-                ice_type = "ice"
-            elif any(k in name_lower for k in ["핫", "hot", "따뜻"]):
-                ice_type = "hot"
-            else:
-                ice_type = "ice"  # 기본값
-
-        transformed.append({
-            "brand": brand,
-            "drink_name": drink_name,
-            "caffeine_amount": caffeine,
-            "ice_type": ice_type,
-        })
-
-    return transformed
+    return df[["brand", "drink_name", "caffeine_amount", "ice_type"]].to_dict("records")
 
 
 async def load_to_db(records: list[dict]):

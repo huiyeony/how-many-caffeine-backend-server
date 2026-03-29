@@ -890,7 +890,7 @@ def _get_s3_client():
 
 def upload_raw_to_s3(brand: str, data: list[dict]) -> str:
     date_str = datetime.utcnow().strftime("%Y%m%d")
-    s3_key = f"raw/{brand}/drinks_{date_str}.json"
+    s3_key = f"raw/brand={brand}/dt={date_str}/drinks.json"
 
     body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
     _get_s3_client().put_object(

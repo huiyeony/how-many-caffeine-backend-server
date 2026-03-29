@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
 
-    # AWS (미사용 - S3 연동 시 필수값으로 변경)
+    # AWS S3
     AWS_ACCESS_KEY_ID: str | None = None
     AWS_SECRET_ACCESS_KEY: str | None = None
     AWS_S3_BUCKET_NAME: str | None = None
@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     LANGSMITH_TRACING: bool = False
     LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
     LANGSMITH_PROJECT: str | None = None
+
 
     # Environment
     ENVIRONMENT: Literal["development", "production"] = "development"

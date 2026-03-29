@@ -1,0 +1,10 @@
+boto3
+psycopg[binary]
+psycopg-pool
+pandas
+openai
+langchain-openai
+langchain_core
+pydantic_settings
+python-dotenv
+beautifulsoup4

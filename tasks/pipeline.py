@@ -14,7 +14,7 @@ async def run_pipeline():
     """
     print(">>> [Pipeline] ELT 파이프라인 시작")
 
-    failed = []
+    failed: list[tuple[str, str]] = []
     for brand in BRAND_REGISTRY:
         print(f">>> [Pipeline] {brand} 처리 시작")
         try:
@@ -23,9 +23,10 @@ async def run_pipeline():
             print(f">>> [Pipeline] {brand} 처리 완료")
         except Exception as e:
             logger.error(f">>> [Pipeline] {brand} 처리 실패: {e}")
-            failed.append(brand)
+            failed.append((brand, str(e)))
 
     if failed:
-        print(f">>> [Pipeline] 완료 (실패 브랜드: {', '.join(failed)})")
+        brand_names = [b for b, _ in failed]
+        print(f">>> [Pipeline] 완료 (실패 브랜드: {', '.join(brand_names)})")
     else:
         print(">>> [Pipeline] ELT 파이프라인 완료")
