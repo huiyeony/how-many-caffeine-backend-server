@@ -23,7 +23,8 @@ def download_raw_from_s3(s3_key: str) -> list[dict]:
     """S3에서 raw JSON 다운로드"""
     s3 = get_s3_client()
     obj = s3.get_object(Bucket=settings.AWS_S3_BUCKET_NAME, Key=s3_key)
-    return json.loads(obj["Body"].read().decode("utf-8"))
+    text = obj["Body"].read().decode("utf-8")
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
 
 
 BRAND_ALIAS = {
