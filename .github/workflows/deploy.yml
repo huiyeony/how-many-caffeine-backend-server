@@ -23,8 +23,6 @@ jobs:
             POSTGRES_USER=myuser
             POSTGRES_PASSWORD=mypassword
             POSTGRES_DB=caffeine_db
-            AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
             AWS_S3_BUCKET_NAME=howmanycaffeine-data-seoul
             AWS_REGION=ap-northeast-2
             OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -50,8 +48,6 @@ jobs:
             done
             echo "PostgreSQL is ready."
             docker exec \
-              -e AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }} \
-              -e AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
               -e AWS_S3_BUCKET_NAME=howmanycaffeine-data-seoul \
               -e AWS_REGION=ap-northeast-2 \
               backend_server python3 /app/tasks/run_pipeline.py
